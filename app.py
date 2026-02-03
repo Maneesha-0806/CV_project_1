@@ -2,6 +2,9 @@ import streamlit as st
 import cv2
 import numpy as np
 from PIL import Image
+from streamlit_webrtc import webrtc_streamer, VideoTransformerBase
+import av
+
 
 # ---------------- Load Face Detector ----------------
 face_cascade = cv2.CascadeClassifier(
@@ -73,7 +76,6 @@ def overlay_emoji(frame, emoji_img, x, y, w, h):
 
     return frame
 
-
 # ---------------- Filter Function ----------------
 def apply_filter(frame, faces):
     global snapshot_counter
@@ -106,32 +108,24 @@ def apply_filter(frame, faces):
 
     return frame
 
+class FaceFilter(VideoTransformerBase):
+    def transform(self, frame):
+        img = frame.to_ndarray(format="bgr24")
+
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+        faces = face_cascade.detectMultiScale(gray, 1.3, 5)
+
+        img = apply_filter(img, faces)
+
+        return img
 
 # ---------------- Webcam Mode ----------------
 if mode == "Webcam":
-
-    run = st.checkbox("Start Webcam")
-
-    if run:
-        cap = cv2.VideoCapture(0)
-
-        while run:
-            ret, frame = cap.read()
-            if not ret:
-                break
-
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-
-            faces = face_cascade.detectMultiScale(gray, 1.3, 5)
-
-            frame = apply_filter(frame, faces)
-
-            FRAME_WINDOW.image(
-                cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            )
-
-        cap.release()
-
+    webrtc_streamer(
+        key="face-detect",
+        video_transformer_factory=FaceFilter
+    )
 
 # ---------------- Video Upload Mode ----------------
 elif mode == "Upload Video":
@@ -183,3 +177,4 @@ elif mode == "Upload Image":
         frame = apply_filter(frame, faces)
 
         st.image(frame)
+
